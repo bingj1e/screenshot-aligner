@@ -4,7 +4,18 @@ Screenshot Aligner is a small Windows helper that cleans up screenshot content f
 
 It runs fully local (no OCR, no network) and can live in the system tray so every screenshot you copy is cleaned up automatically.
 
-## Requirements
+## Download (No Python Required)
+
+Download `ScreenshotAligner.exe` from the [Releases page](https://github.com/bingj1e/screenshot-aligner/releases) and double-click it. The tray icon appears and every screenshot you copy is cleaned up automatically. Logs go to `%LOCALAPPDATA%\ScreenshotAligner\screenshot-aligner.log`.
+
+Notes for first run:
+
+- Windows SmartScreen may warn because the exe is not code-signed. Click "More info", then "Run anyway".
+- To start it automatically on sign-in: press `Win+R`, type `shell:startup`, press Enter, and put a shortcut to `ScreenshotAligner.exe` in the folder that opens.
+
+To build the exe yourself: `pip install . pyinstaller`, then run `packaging\build-exe.ps1`.
+
+## Requirements (Install From Source)
 
 - Windows 10/11
 - Python 3.12 or newer ([python.org/downloads](https://www.python.org/downloads/), check "Add python.exe to PATH" during install)
