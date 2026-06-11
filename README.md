@@ -32,6 +32,10 @@ To also run the test suite or work on the code, install in editable mode instead
 python -m pip install -e ".[dev]"
 ```
 
+Current distribution status: this is a Python-based Windows tool. Users need
+Python installed before running it. A packaged `.exe` release is not included
+yet.
+
 ## Use
 
 Start the hotkey listener:
@@ -81,7 +85,12 @@ To start the tray app automatically when Windows signs in:
 .\scripts\install-startup.cmd
 ```
 
-Pass `-Mode watch` to `scripts\install-startup.ps1` if you prefer the headless watcher without a tray icon.
+This installs the tray app by default. If you prefer the headless watcher
+without a tray icon, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-startup.ps1 -Mode watch
+```
 
 ## Auto Process Screenshots
 
@@ -95,13 +104,7 @@ This works well with QQ, Windows Snipping Tool, ShareX, browser screenshots, and
 
 Stop it with `Ctrl+C` in the terminal.
 
-You can also start watch mode with the helper script:
-
-```powershell
-.\scripts\start-watch.ps1
-```
-
-To start the background watcher now without a visible terminal:
+To start the headless background watcher without a visible terminal:
 
 ```powershell
 .\scripts\start-watch.cmd
@@ -113,7 +116,7 @@ To check whether it is running:
 .\scripts\status.cmd
 ```
 
-To stop the background watcher:
+To stop the headless background watcher:
 
 ```powershell
 .\scripts\stop-watch.cmd
@@ -168,7 +171,7 @@ screenshot-aligner debug-file input.png
 - Background fill: dominant edge color
 - Foreground detection threshold: `24`
 - Foreground dilation: `3` px
-- Specks smaller than `80` px² (after dilation) are ignored
+- Specks smaller than `80` px^2 (after dilation) are ignored
 
 ## Run Tests
 
