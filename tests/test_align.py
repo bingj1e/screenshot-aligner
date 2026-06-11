@@ -112,6 +112,56 @@ def test_crop_mode_uses_adaptive_padding_for_large_content() -> None:
     assert result.image.size == (1056 + 63 * 2, 556 + 63 * 2)
 
 
+def test_crop_mode_includes_subtle_chat_bubble_around_text() -> None:
+    image = Image.new("RGB", (420, 180), "white")
+    draw = ImageDraw.Draw(image)
+    bubble = (48, 26, 330, 84)
+    draw.rounded_rectangle(bubble, radius=14, fill=(245, 245, 245))
+    draw.rectangle((78, 44, 250, 55), fill="black")
+    draw.rectangle((78, 62, 180, 73), fill="black")
+
+    result = align_image(image, CROP_CONFIG)
+
+    assert result.changed
+    assert result.bbox is not None
+    assert result.bbox.left <= bubble[0]
+    assert result.bbox.top <= bubble[1]
+    assert result.bbox.right >= bubble[2]
+    assert result.bbox.bottom >= bubble[3]
+
+
+def test_grazing_full_width_band_is_not_included() -> None:
+    image = Image.new("RGB", (800, 400), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((350, 150, 450, 200), fill="black")  # the text
+    # Subtle full-width separator band just below the text. It grazes the
+    # dilated text bounds but is page furniture, not a related container.
+    draw.rectangle((0, 205, 799, 215), fill=(246, 246, 246))
+
+    result = align_image(image, CROP_CONFIG)
+
+    assert result.bbox is not None
+    assert result.bbox.left >= 300
+    assert result.bbox.right <= 500
+
+
+def test_noisy_background_does_not_expand_to_full_frame() -> None:
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    arr = np.full((400, 800, 3), 245, dtype=np.int16)
+    arr += rng.integers(-5, 6, size=arr.shape, dtype=np.int16)
+    image = Image.fromarray(arr.clip(0, 255).astype(np.uint8))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((300, 150, 500, 250), fill="black")
+
+    result = align_image(image, CROP_CONFIG)
+
+    assert result.bbox is not None
+    assert result.bbox.width <= 300
+    assert result.bbox.height <= 200
+
+
 def test_isolated_speck_is_ignored_when_cropping() -> None:
     image = Image.new("RGB", (400, 200), "white")
     draw = ImageDraw.Draw(image)

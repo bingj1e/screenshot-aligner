@@ -47,7 +47,8 @@ def align_image(
     rgb_image = _to_rgb(image)
     arr = np.asarray(rgb_image, dtype=np.uint8)
     background_color = estimate_background_color(arr, cfg.edge_sample_px)
-    mask = build_foreground_mask(arr, background_color, cfg)
+    distance = background_distance(arr, background_color)
+    mask = mask_from_distance(distance, cfg.mask_threshold, cfg)
     bbox = bbox_from_mask(mask, cfg)
 
     if bbox is None:
@@ -72,6 +73,8 @@ def align_image(
                 "is unreliable, so the image was left unchanged."
             ),
         )
+
+    bbox = include_related_soft_regions(distance, bbox, cfg)
 
     if cfg.mode == "crop":
         return _crop_to_foreground(rgb_image, bbox, background_color, cfg)
@@ -187,16 +190,20 @@ def estimate_background_color(
     return tuple(int(round(channel)) for channel in median)
 
 
-def build_foreground_mask(
-    arr: np.ndarray,
-    background_color: tuple[int, int, int],
-    config: AlignmentConfig | None = None,
+def background_distance(
+    arr: np.ndarray, background_color: tuple[int, int, int]
 ) -> np.ndarray:
-    cfg = config or AlignmentConfig()
+    """Per-pixel Euclidean color distance from the estimated background."""
     bg = np.array(background_color, dtype=np.int32)
     diff = arr.astype(np.int32) - bg
-    distance = np.sqrt(np.sum(diff * diff, axis=2))
-    mask = (distance > cfg.mask_threshold).astype(np.uint8) * 255
+    return np.sqrt(np.sum(diff * diff, axis=2))
+
+
+def mask_from_distance(
+    distance: np.ndarray, threshold: int, config: AlignmentConfig | None = None
+) -> np.ndarray:
+    cfg = config or AlignmentConfig()
+    mask = (distance > threshold).astype(np.uint8) * 255
 
     if cfg.dilate_px > 0:
         kernel_size = cfg.dilate_px * 2 + 1
@@ -205,6 +212,96 @@ def build_foreground_mask(
         )
         mask = cv2.dilate(mask, kernel, iterations=1)
     return mask
+
+
+def build_foreground_mask(
+    arr: np.ndarray,
+    background_color: tuple[int, int, int],
+    config: AlignmentConfig | None = None,
+    threshold: int | None = None,
+) -> np.ndarray:
+    cfg = config or AlignmentConfig()
+    mask_threshold = cfg.mask_threshold if threshold is None else threshold
+    return mask_from_distance(
+        background_distance(arr, background_color), mask_threshold, cfg
+    )
+
+
+def include_related_soft_regions(
+    distance: np.ndarray,
+    bbox: BoundingBox,
+    config: AlignmentConfig | None = None,
+) -> BoundingBox:
+    """Expand content bounds to include subtle containers around detected text.
+
+    Chat bubbles and quote blocks are often only slightly different from the
+    page background, so the strong text mask misses their edges. A softer mask
+    finds those regions, but a component is only included when it intersects
+    the already-detected text bounds AND stays within reach of them. The reach
+    limit rejects page furniture that merely grazes the content (a full-width
+    separator band) and noise blobs that span the whole frame, both of which
+    would otherwise drag the crop out to the page edges.
+    """
+    cfg = config or AlignmentConfig()
+    if cfg.container_threshold >= cfg.mask_threshold:
+        return bbox
+
+    soft_mask = mask_from_distance(distance, cfg.container_threshold, cfg)
+    if float(np.count_nonzero(soft_mask)) / soft_mask.size > cfg.max_foreground_ratio:
+        # The soft threshold lights up nearly everything (noisy or textured
+        # background); component analysis would be meaningless here.
+        return bbox
+
+    count, _, stats, _ = cv2.connectedComponentsWithStats(soft_mask, connectivity=8)
+    if count <= 1:
+        return bbox
+
+    reach_x = max(2 * cfg.min_padding, round(bbox.width * cfg.container_reach_ratio))
+    reach_y = max(2 * cfg.min_padding, round(bbox.height * cfg.container_reach_ratio))
+
+    left = bbox.left
+    top = bbox.top
+    right = bbox.right
+    bottom = bbox.bottom
+
+    for component in stats[1:]:
+        area = int(component[cv2.CC_STAT_AREA])
+        if area < cfg.min_component_area:
+            continue
+
+        comp_left = int(component[cv2.CC_STAT_LEFT])
+        comp_top = int(component[cv2.CC_STAT_TOP])
+        comp_right = comp_left + int(component[cv2.CC_STAT_WIDTH]) - 1
+        comp_bottom = comp_top + int(component[cv2.CC_STAT_HEIGHT]) - 1
+
+        if not boxes_intersect(bbox, comp_left, comp_top, comp_right, comp_bottom):
+            continue
+
+        if (
+            comp_left < bbox.left - reach_x
+            or comp_right > bbox.right + reach_x
+            or comp_top < bbox.top - reach_y
+            or comp_bottom > bbox.bottom + reach_y
+        ):
+            continue
+
+        left = min(left, comp_left)
+        top = min(top, comp_top)
+        right = max(right, comp_right)
+        bottom = max(bottom, comp_bottom)
+
+    return BoundingBox(left=left, top=top, right=right, bottom=bottom)
+
+
+def boxes_intersect(
+    bbox: BoundingBox, left: int, top: int, right: int, bottom: int
+) -> bool:
+    return not (
+        right < bbox.left
+        or left > bbox.right
+        or bottom < bbox.top
+        or top > bbox.bottom
+    )
 
 
 def bbox_from_mask(

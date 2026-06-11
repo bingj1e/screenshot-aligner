@@ -17,6 +17,8 @@ class AlignmentConfig:
     max_padding: int = 128
     padding_ratio: float = 0.06
     mask_threshold: int = 24
+    container_threshold: int = 8
+    container_reach_ratio: float = 0.5
     dilate_px: int = 3
     edge_sample_px: int = 8
     min_component_area: int = 80
