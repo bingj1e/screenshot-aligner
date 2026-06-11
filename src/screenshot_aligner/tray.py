@@ -7,6 +7,7 @@ pause/resume, process-now, open-log, and quit actions.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -26,6 +27,11 @@ def run_tray(config: AlignmentConfig, output, log_file: Path | None = None) -> i
             f"Could not import pystray: {exc}. Install it with: pip install pystray"
         )
         return 1
+
+    single_instance_mutex = _acquire_single_instance_lock()
+    if single_instance_mutex is None:
+        output.info("Screenshot Aligner is already running; this instance will exit.")
+        return 0
 
     from .cli import process_clipboard_once
 
@@ -101,19 +107,90 @@ def run_tray(config: AlignmentConfig, output, log_file: Path | None = None) -> i
     return 0
 
 
+def _acquire_single_instance_lock():
+    """Hold a session-wide mutex so double-clicking the exe twice is harmless.
+
+    Returns the mutex handle to keep alive for the process lifetime, or None
+    when another instance already owns it. On non-Windows platforms the lock
+    is skipped (returns a placeholder truthy object).
+    """
+    if sys.platform != "win32":
+        return object()
+
+    import win32api
+    import win32event
+    import winerror
+
+    handle = win32event.CreateMutex(None, False, "Local\\ScreenshotAlignerTray")
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        return None
+    return handle
+
+
 def build_icon_image(size: int = 64) -> Image.Image:
-    """Draw the tray icon: a centered content block inside a framed canvas."""
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    """Draw the app icon: a tidy screenshot card on a blue gradient tile.
+
+    Drawn at 256 px and downscaled, so edges stay smooth at small sizes.
+    """
+    base = 256
+    image = Image.new("RGBA", (base, base), (0, 0, 0, 0))
+
+    # Rounded-square tile filled with a vertical indigo-to-sky gradient.
+    gradient = Image.new("RGBA", (base, base))
+    gradient_draw = ImageDraw.Draw(gradient)
+    top_color = (79, 70, 229)
+    bottom_color = (14, 165, 233)
+    for y in range(base):
+        t = y / (base - 1)
+        color = tuple(
+            round(top_color[i] + (bottom_color[i] - top_color[i]) * t)
+            for i in range(3)
+        )
+        gradient_draw.line([(0, y), (base, y)], fill=color + (255,))
+    tile_mask = Image.new("L", (base, base), 0)
+    ImageDraw.Draw(tile_mask).rounded_rectangle(
+        (8, 8, base - 9, base - 9), radius=58, fill=255
+    )
+    image.paste(gradient, (0, 0), tile_mask)
+
     draw = ImageDraw.Draw(image)
-    margin = size // 16
+
+    # Crop marks hugging the card corners: the "alignment" idea.
+    mark = 26
+    stroke = 12
+    for cx, cy, dx, dy in (
+        (52, 56, 1, 1),
+        (204, 56, -1, 1),
+        (52, 200, 1, -1),
+        (204, 200, -1, -1),
+    ):
+        draw.line([(cx, cy), (cx + dx * mark, cy)], fill=(255, 255, 255, 230), width=stroke)
+        draw.line([(cx, cy), (cx, cy + dy * mark)], fill=(255, 255, 255, 230), width=stroke)
+
+    # White screenshot card with a soft drop shadow.
+    card = (76, 84, 180, 172)
     draw.rounded_rectangle(
-        (margin, margin, size - margin - 1, size - margin - 1),
-        radius=size // 8,
-        fill=(36, 99, 235, 255),
+        (card[0] + 7, card[1] + 9, card[2] + 7, card[3] + 9),
+        radius=18,
+        fill=(15, 23, 90, 80),
     )
-    inner = size * 5 // 16
-    draw.rectangle(
-        (inner, inner, size - inner - 1, size - inner - 1),
-        fill=(255, 255, 255, 255),
-    )
+    draw.rounded_rectangle(card, radius=18, fill=(255, 255, 255, 255))
+
+    # Text lines on the card: one heading and two body lines.
+    line_left = card[0] + 16
+    line_right = card[2] - 16
+    full = line_right - line_left
+    for y0, frac, color in (
+        (card[1] + 18, 0.62, (51, 65, 85, 255)),
+        (card[1] + 42, 1.0, (148, 163, 184, 255)),
+        (card[1] + 62, 0.78, (148, 163, 184, 255)),
+    ):
+        draw.rounded_rectangle(
+            (line_left, y0, line_left + full * frac, y0 + 11),
+            radius=5,
+            fill=color,
+        )
+
+    if size != base:
+        image = image.resize((size, size), Image.LANCZOS)
     return image
