@@ -4,9 +4,29 @@ Screenshot Aligner is a small Windows helper that cleans up screenshot content f
 
 It runs fully local (no OCR, no network) and can live in the system tray so every screenshot you copy is cleaned up automatically.
 
+## Requirements
+
+- Windows 10/11
+- Python 3.12 or newer ([python.org/downloads](https://www.python.org/downloads/), check "Add python.exe to PATH" during install)
+- Git (or download the repository as a ZIP from GitHub)
+
 ## Install
 
-From this folder:
+Clone the repository and install it with pip:
+
+```powershell
+git clone https://github.com/wuabing/screenshot-aligner.git
+cd screenshot-aligner
+python -m pip install .
+```
+
+This installs all dependencies and puts the `screenshot-aligner` command on your PATH. Then start the tray app:
+
+```powershell
+screenshot-aligner tray
+```
+
+To also run the test suite or work on the code, install in editable mode instead:
 
 ```powershell
 python -m pip install -e ".[dev]"
