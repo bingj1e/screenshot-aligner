@@ -15,7 +15,7 @@ It runs fully local (no OCR, no network) and can live in the system tray so ever
 Clone the repository and install it with pip:
 
 ```powershell
-git clone https://github.com/wuabing/screenshot-aligner.git
+git clone https://github.com/bingj1e/screenshot-aligner.git
 cd screenshot-aligner
 python -m pip install .
 ```
