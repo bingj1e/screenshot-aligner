@@ -89,14 +89,26 @@ def _crop_to_foreground(
     background_color: tuple[int, int, int],
     cfg: AlignmentConfig,
 ) -> AlignmentResult:
-    padding = cfg.padding_for(bbox.width, bbox.height)
+    base = cfg.padding_for(bbox.width, bbox.height)
+    left_gap = bbox.left
+    right_gap = rgb_image.width - bbox.right - 1
+    top_gap = bbox.top
+    bottom_gap = rgb_image.height - bbox.bottom - 1
+
+    # Cap the padding at the average margin the screenshot already had on each
+    # axis. Crop mode should only tighten and rebalance, never inflate: an
+    # already tightly-cropped image (small side gaps) must not gain new borders
+    # just because the adaptive padding is larger than the gap that was there.
+    pad_x = max(0, min(base, (left_gap + right_gap) // 2))
+    pad_y = max(0, min(base, (top_gap + bottom_gap) // 2))
+
     crop = rgb_image.crop((bbox.left, bbox.top, bbox.right + 1, bbox.bottom + 1))
     output = Image.new(
         "RGB",
-        (bbox.width + padding * 2, bbox.height + padding * 2),
+        (bbox.width + pad_x * 2, bbox.height + pad_y * 2),
         background_color,
     )
-    output.paste(crop, (padding, padding))
+    output.paste(crop, (pad_x, pad_y))
 
     changed = output.size != rgb_image.size or output.tobytes() != rgb_image.tobytes()
     return AlignmentResult(
@@ -105,10 +117,10 @@ def _crop_to_foreground(
         foreground_found=True,
         bbox=bbox,
         background_color=background_color,
-        added_left=padding - bbox.left,
-        added_top=padding - bbox.top,
-        added_right=padding - (rgb_image.width - bbox.right - 1),
-        added_bottom=padding - (rgb_image.height - bbox.bottom - 1),
+        added_left=pad_x - left_gap,
+        added_top=pad_y - top_gap,
+        added_right=pad_x - right_gap,
+        added_bottom=pad_y - bottom_gap,
     )
 
 

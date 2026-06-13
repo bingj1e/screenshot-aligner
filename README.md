@@ -172,6 +172,7 @@ screenshot-aligner debug-file input.png
 - Tiny isolated specks (a leftover cursor pixel, compression dust) are ignored when computing the content box, so they no longer stretch the crop.
 - Subtle containers around the text (chat bubbles, quote blocks that barely differ from the page) are found with a softer second threshold and included in the crop - but only when they intersect the detected text and stay within reach of it, so full-width page furniture and noise blobs cannot drag the crop out to the page edges.
 - Padding adapts to content size: small snippets get a comfortable `24` px margin, large screenshots get proportionally more (6% of the longer content side, capped at `128` px).
+- Crop only ever tightens and rebalances - it never inflates. The padding is capped at the average margin the screenshot already had on each axis, so an image you already cropped tightly keeps its tight framing instead of gaining new side borders.
 - If the detected foreground covers almost the entire image, the background estimate is considered unreliable and the image is left unchanged instead of producing a distorted result.
 
 ## Defaults

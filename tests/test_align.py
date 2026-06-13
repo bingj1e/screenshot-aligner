@@ -162,6 +162,31 @@ def test_noisy_background_does_not_expand_to_full_frame() -> None:
     assert result.bbox.height <= 200
 
 
+def test_crop_mode_does_not_add_borders_to_already_tight_content() -> None:
+    # Content already fills most of the frame, leaving only small side gaps
+    # (like an app screenshot the user cropped tightly themselves).
+    image = Image.new("RGB", (320, 200), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((8, 40, 300, 150), fill="black")
+
+    result = align_image(image, CROP_CONFIG)
+
+    # Crop must not inflate the frame: no new borders wider than the original.
+    assert result.image.width <= image.width
+
+
+def test_crop_mode_does_not_inflate_when_content_touches_edges() -> None:
+    image = Image.new("RGB", (260, 160), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 259, 159), fill="white")
+    draw.rectangle((2, 2, 257, 157), fill="black")  # gaps smaller than min_padding
+
+    result = align_image(image, CROP_CONFIG)
+
+    assert result.image.width <= image.width
+    assert result.image.height <= image.height
+
+
 def test_isolated_speck_is_ignored_when_cropping() -> None:
     image = Image.new("RGB", (400, 200), "white")
     draw = ImageDraw.Draw(image)

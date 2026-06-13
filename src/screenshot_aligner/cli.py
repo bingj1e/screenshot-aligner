@@ -256,10 +256,12 @@ def print_result(label: str, result, config: AlignmentConfig, output: "Output") 
         output.info(f"{label}: no foreground detected.")
     elif result.changed:
         if config.mode == "crop":
-            padding = config.padding_for(result.bbox.width, result.bbox.height)
+            pad_x = (result.image.width - result.bbox.width) // 2
+            pad_y = (result.image.height - result.bbox.height) // 2
+            padding = f"{pad_x}px" if pad_x == pad_y else f"{pad_x}x{pad_y}px"
             output.info(
                 f"{label}: cropped to main content with "
-                f"{padding}px padding, output={result.image.width}x{result.image.height}"
+                f"{padding} padding, output={result.image.width}x{result.image.height}"
             )
             return
         output.info(
