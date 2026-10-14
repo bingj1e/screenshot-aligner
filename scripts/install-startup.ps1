@@ -1,9 +1,10 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [ValidateSet("tray", "watch")]
     [string]$Mode = "tray"
 )
+
+# param() must be the first statement of a script, so this comes after it.
+$ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $StartScript = Join-Path $PSScriptRoot "start-$Mode.ps1"
